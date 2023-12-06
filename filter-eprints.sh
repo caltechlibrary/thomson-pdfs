@@ -16,7 +16,17 @@ for dir in $(sort -n <(ls -1d [0-9]*)); do
     # file to select the <document> elements with <security> values of
     # "public" and then from the selected <document> elements, return the
     # URLs of all <file> elements.
-    files=($(yq ".eprints.eprint.documents.document[] | select(.security == \"public\") | .files.file |= ([] + .) | .files.file[].url" -op $recordfile))
+    candidates=($(yq ".eprints.eprint.documents.document[] | select(.security == \"public\") | .files.file |= ([] + .) | .files.file[].url" -op $recordfile))
+
+    # Filter the list of files to keep only certain types of files.
+    files=$((IFS=$'\n' && echo "${candidates[*]}") | egrep -i '(pdf|ps|bbl|bib|enl)$')
+    # In case of an empty list, the command above leaves one empty string in
+    # the array -- I wish I could find a better way to remove it than this:
+    for i in ${!files[@]}; do
+        if [[ -z ${files[i]} ]]; then
+           unset files[i]
+        fi
+    done
 
     # We only keep files that are public. If that leaves no files in a given
     # subdirectory, remove the subdirectory too.
@@ -26,13 +36,11 @@ for dir in $(sort -n <(ls -1d [0-9]*)); do
         rmdir $dir
     fi
 
-    # Filter the list of files to keep only certain files and remove any
-    # other files in the subdirectory.
-    keepers=$((IFS=$'\n' && echo "${files[*]}") | egrep -i '(pdf|ps|bbl|bib|enl)$')
-    keepers+=("$recordfile")
+    # Remove the files we're not keeping.
+    files+=("$recordfile")
     for path in $dir/*; do
         file=${path##*/}
-        if [[ ${keepers[@]} =~ "$file" ]]; then
+        if [[ ${files[@]} =~ "$file" ]]; then
             echo "$dir: keeping $file"
         else
             echo "$dir: discarding $file"
@@ -41,3 +49,4 @@ for dir in $(sort -n <(ls -1d [0-9]*)); do
     done
     echo
 done
+
