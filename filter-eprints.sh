@@ -8,18 +8,19 @@
 # subdirectories as produced by eprints2bags. This means the current
 # directory has subdirectories named 1, 2, 3, 4, 5, 6, ....
 
+declare -a candidates
 declare -a files
 
 for dir in $(sort -n <(ls -1d [0-9]*)); do
     recordfile="$dir/$dir.xml"
     # The following gnarly yq command line looks inside the XML eprint record
     # file to select the <document> elements with <security> values of
-    # "public" and then from the selected <document> elements, return the
+    # "public" and then from the selected <document> elements, returns the
     # URLs of all <file> elements.
     candidates=($(yq ".eprints.eprint.documents.document[] | select(.security == \"public\") | .files.file |= ([] + .) | .files.file[].url" -op $recordfile))
 
     # Filter the list of files to keep only certain types of files.
-    files=$((IFS=$'\n' && echo "${candidates[*]}") | egrep -i '(pdf|ps|bbl|bib|enl)$')
+    files=($((IFS=$'\n' && echo "${candidates[*]}") | egrep -i '(pdf|ps|bbl|bib|enl)$'))
     # In case of an empty list, the command above leaves one empty string in
     # the array -- I wish I could find a better way to remove it than this:
     for i in ${!files[@]}; do
@@ -34,6 +35,7 @@ for dir in $(sort -n <(ls -1d [0-9]*)); do
         echo "No acceptable files found in $dir"
         rm $dir/*
         rmdir $dir
+        continue
     fi
 
     # Remove the files we're not keeping.
@@ -49,4 +51,3 @@ for dir in $(sort -n <(ls -1d [0-9]*)); do
     done
     echo
 done
-
